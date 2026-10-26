@@ -113,20 +113,29 @@ img{display:block;-webkit-user-drag:none;user-select:none}
 .card .tick{position:absolute;top:-8px;right:-4px;z-index:4;width:26px;height:26px;border-radius:50%;background:var(--hot);color:#fff;border:2px solid #fff;
   display:none;place-items:center;font-size:15px;font-weight:700}
 .card[aria-checked=true] .tick{display:grid}
-.card .new{position:absolute;white-space:nowrap;top:-9px;left:50%;transform:translateX(-50%);z-index:3;background:var(--hot);color:#fff;font-weight:800;font-size:11px;line-height:1.6;
+.card .tag{position:absolute;white-space:nowrap;top:-9px;left:50%;transform:translateX(-50%);z-index:3;background:var(--hot);color:#fff;font-weight:800;font-size:11px;line-height:1.6;
   padding:0 9px;border-radius:99px;box-shadow:0 3px 8px rgba(214,36,110,.4);letter-spacing:.02em}
 .c-maneki{--bg:linear-gradient(155deg,#FFE5BF 0%,#FF9C5A 100%)}
 .c-kappa{--bg:linear-gradient(155deg,#CBF7D9 0%,#52DB82 100%)}
 .c-yuki{--bg:linear-gradient(155deg,#E8DCFF 0%,#B197FC 100%)}
 .c-chano{--bg:linear-gradient(155deg,#FFDDEC 0%,#F6A5C8 100%)}
 .c-nene{--bg:linear-gradient(155deg,#E9E9F1 0%,#9A9AAE 100%)}
+.card.locked{cursor:not-allowed}
+.card.locked .pic img{filter:grayscale(1) brightness(1.1);opacity:.55}
+.card.locked::after{display:none}
+.card .lock{display:none;position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);z-index:3;width:46px;height:46px;border-radius:50%;
+  background:rgba(255,255,255,.94);box-shadow:0 4px 12px rgba(75,29,69,.25);place-items:center;font-size:24px}
+.card.locked .lock{display:grid}
+.card.shake{animation:shake .4s}
+@keyframes shake{0%,100%{translate:0}20%{translate:-6px}40%{translate:6px}60%{translate:-4px}80%{translate:3px}}
+.unlock-note{display:block;margin-top:4px;font-weight:700;color:var(--hot)}
 .c-chita{--bg:linear-gradient(155deg,#FFF1F8 0%,#CDBBFF 100%)}
 /* การ์ดระดับพิเศษ: ขอบรุ้งทอง + แสงประกายระยิบ */
 .card.special{border-color:transparent;background:var(--bg) padding-box,linear-gradient(135deg,#FFE27A,#FF9ED2,#B4A0FF,#7FE3FF,#FFE27A) border-box;
   box-shadow:0 8px 20px rgba(180,160,255,.45)}
 .card.special[aria-checked=true]{border-color:var(--hot);background:var(--bg)}
 .card.special::after{content:"✨";position:absolute;left:8px;top:34%;font-size:16px;pointer-events:none;animation:twinkle 1.8s ease-in-out infinite}
-.card .new.gold{background:linear-gradient(135deg,#FFB62E,#FF7EB3);box-shadow:0 3px 10px rgba(255,150,80,.5)}
+.card .tag.gold{background:linear-gradient(135deg,#FFB62E,#FF7EB3);box-shadow:0 3px 10px rgba(255,150,80,.5)}
 @keyframes twinkle{0%,100%{opacity:.25;transform:scale(.7) rotate(0)}50%{opacity:1;transform:scale(1.15) rotate(18deg)}}
 
 .gear{flex:none;position:relative;display:flex;flex-direction:column;gap:5px;background:#fff;border:2px solid var(--rose);border-radius:22px;padding:6px 10px;box-shadow:0 4px 14px rgba(214,36,110,.1)}
@@ -240,7 +249,7 @@ img{display:block;-webkit-user-drag:none;user-select:none}
   .say p{line-height:1.5}
   .sel-banner{padding:6px 12px}
 }
-@media (max-height:600px){.r-visual,.tipbar{display:none}}
+@media (max-height:600px){.r-visual,.tipbar{display:none}.unlock-note{margin-top:2px;font-size:var(--fs-xs);line-height:1.35}.say .who2{display:none}}
 @media (max-height:560px){
   .metric{padding:5px 10px 6px}
   .metric .n b{font-size:var(--fs-lg)}
@@ -296,6 +305,7 @@ img{display:block;-webkit-user-drag:none;user-select:none}
   .metric .bar{height:4px;margin-top:2px}
   .say{padding:5px 10px}
   .say p{margin-top:2px;line-height:1.4}
+  .say .who2{display:none}
   .r-head h2{font-size:var(--fs-lg)}
 }
 </style>
@@ -445,6 +455,8 @@ const CFG = Object.freeze({
   collapseRate: 0.035,
   collapseFloor: 0.55,
 
+  domFrom: 0.5,              // สัดส่วนเส้นทางแนวนอน ≤ ค่านี้ = ท่า M คูณ 0.25
+  domFull: 0.85,             // ≥ ค่านี้ = ไม่ลด
   mGateFull: 70,             // ท่า M ถึงค่านี้ = คะแนนรวมไม่ถูกลด (ต่ำกว่านั้นลดสูงสุด 50%)
   coverageFull: 70,          // ทั่วถึง 70% ถือว่าเต็ม (ขอบถ้วยลากยาก)
   regularityFrom: 0.15,      // CV ของจังหวะสโตรก ≤ ค่านี้ = สม่ำเสมอเต็ม
@@ -453,6 +465,7 @@ const CFG = Object.freeze({
   grades: Object.freeze({ S: 90, A: 80, B: 65 }),
 });
 
+const MAX_BINS = Math.ceil((CFG.maxSeconds * 1000) / CFG.binMs) * 2;   // เพดานจำนวนช่วงเวลา (กันอาร์เรย์โตเกินเมื่อนาฬิกากระโดด)
 const clamp = (x, lo = 0, hi = 1) => (Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : lo);
 
 class WhiskEngine {
@@ -492,10 +505,11 @@ class WhiskEngine {
   }
 
   pointerDown(u, v, t) {
+    if (!Number.isFinite(u + v + t)) return;
     if (this.started && this.upT != null) {          // แตะกลับมาหลังยกนิ้ว → บันทึกเป็นช่วงพัก
       this.upMs += Math.max(0, t - this.upT);
       const a = Math.max(0, Math.floor((this.upT - this.t0) / CFG.binMs));
-      for (let i = a, b = Math.floor((t - this.t0) / CFG.binMs); i <= b; i++) this.skip.add(i);
+      for (let i = a, b = Math.min(a + MAX_BINS, Math.floor((t - this.t0) / CFG.binMs)); i <= b; i++) this.skip.add(i);
     }
     if (this.upT != null) this.breaks.add(this.strokeTimes.length);
     this.upT = null;
@@ -517,7 +531,9 @@ class WhiskEngine {
   pointerMove(u, v, t) {
     const out = { stroke: false, started: false };
     const p = this.last;
-    if (!p) return out;
+    if (!p || !Number.isFinite(u + v + t)) return out;
+    u = clamp(u, -0.5, 0.5);
+    v = clamp(v, -0.5, 0.5);
     const du = u - p.u;
     const dv = v - p.v;
     const dist = Math.hypot(du, dv);
@@ -540,7 +556,7 @@ class WhiskEngine {
     this.foamWork += 0.1 * dist;
 
     // ---- ช่วงความเร็ว (bins) ----
-    const idx = Math.max(0, Math.floor((t - this.t0) / CFG.binMs));
+    const idx = Math.min(MAX_BINS, Math.max(0, Math.floor((t - this.t0) / CFG.binMs)));
     while (this.bins.length <= idx) this.bins.push(0);
     this.bins[idx] += dist;
 
@@ -680,8 +696,9 @@ class WhiskEngine {
     const regularity = this._regularity();
     // ท่า M = จังหวะ × ความกว้าง × แนวนอน  แล้ว "คูณ" ด้วยตัวลงโทษ (ตีแคบ / จังหวะมั่ว / คนวน)
     const base = 0.4 * rateScore + 0.3 * ampScore + 0.3 * dom;
+    const horizontal = clamp((dom - CFG.domFrom) / (CFG.domFull - CFG.domFrom));
     const ampGate = clamp(avgAmp / (0.7 * CFG.targetAmp));
-    const mShape = 100 * clamp(base * ampGate * (0.3 + 0.7 * regularity) * (0.2 + 0.8 * nonCircular) * (0.3 + 0.7 * rateScore));   // ตีช้ากว่าเป้า → ท่า M ลดตามสัดส่วน
+    const mShape = 100 * clamp(base * ampGate * (0.3 + 0.7 * regularity) * (0.2 + 0.8 * nonCircular) * (0.3 + 0.7 * rateScore) * (0.25 + 0.75 * horizontal));   // ตีช้ากว่าเป้า → ท่า M ลดตามสัดส่วน
 
     const total = this.cells.list.length;
     const coverage = total ? (this.coveredCount / total) * 100 : 0;
@@ -780,11 +797,11 @@ const CHARACTERS = [
     bonus: '💧 ฟองเด้งดึ๋ง', perks: { collapseMul: 0.5 } },
   { id: 'yuki', name: 'ชามิ', short: 'ชามิ', emoji: '👘', tagline: 'ละมุน',
     bonus: '✨ ความเนียน +10%', perks: { smoothMul: 1.1 } },
-  { id: 'chano', name: 'ชามุ', short: 'ชามุ', emoji: '🍵', tagline: 'ชงชาเก่ง', isNew: true,
+  { id: 'chano', name: 'ชามุ', short: 'ชามุ', emoji: '🍵', tagline: 'ชงชาเก่ง',
     bonus: '🍵 มือชงชามือโปร ฟอง+เนียน', perks: { smoothMul: 1.05, foamMul: 1.05, collapseMul: 0.8 } },
-  { id: 'nene', name: 'เณรน้อย', short: 'เณรน้อย', emoji: '🙏', tagline: 'สมาธิดี', isNew: true,
+  { id: 'nene', name: 'เณรน้อย', short: 'เณรน้อย', emoji: '🙏', tagline: 'สมาธิดี',
     bonus: '🧘 สมาธินิ่ง เนียน +8%', perks: { smoothMul: 1.08, foamTauMul: 0.95 } },
-  { id: 'chita', name: 'ชิต้า ม้าอ้วม~', short: 'ชิต้า', emoji: '🦄', tagline: 'Level พิเศษ', special: true,
+  { id: 'chita', name: 'ชิต้า ม้าอ้วม~', short: 'ชิต้า', emoji: '🦄', tagline: 'Level พิเศษ', special: true, lock: { grade: 'S', times: 3 },
     bonus: '🦄 เนียน +8% · ฟอง +8% · ฟองทน', perks: { smoothMul: 1.08, foamMul: 1.08, collapseMul: 0.6, foamTauMul: 0.92 } },
 ];
 
@@ -828,6 +845,7 @@ const BOWLS = [
     playing: false,            // ตั้งแต่กดเริ่มจนเสิร์ฟ
     finished: false,
     pointerId: null,
+    sCount: 0,                 // จำนวนครั้งที่ได้เกรด S สะสม (บันทึกในเครื่อง)
     sound: false,
     audio: null,
     lastBlip: 0,
@@ -852,6 +870,7 @@ const BOWLS = [
     D.steps = [...document.querySelectorAll('.step')];
 
     D.bgBowl.src = ASSETS.bowl;
+    loadProgress();
     buildCards();
     buildGear();
     buildStats();
@@ -903,24 +922,57 @@ const BOWLS = [
   }
 
   /* ---------- หน้าเลือกคนชง ---------- */
+  /* ---------- ความคืบหน้า: ปลดล็อกตัวละครพิเศษด้วยเกรด S ---------- */
+  const SAVE_KEY = 'matcha-ritual:sakura:v1';
+  function loadProgress() {
+    try { S.sCount = Math.max(0, parseInt(JSON.parse(localStorage.getItem(SAVE_KEY) || '{}').sCount, 10) || 0); } catch (e) { /* โหมดส่วนตัว: นับเฉพาะรอบนี้ */ }
+  }
+  function saveProgress() {
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ sCount: S.sCount })); } catch (e) { /* ข้าม */ }
+  }
+  const isLocked = (c) => !!c.lock && S.sCount < c.lock.times;
+  const lockLeft = (c) => c.lock.times - Math.min(S.sCount, c.lock.times);
+
+  function refreshLocks() {
+    [...D.cards.children].forEach((b) => {
+      const c = CHARACTERS.find((x) => x.id === b.dataset.id);
+      if (!c.lock) return;
+      const locked = isLocked(c);
+      b.classList.toggle('locked', locked);
+      b.setAttribute('aria-disabled', String(locked));
+      b.querySelector('.tg').textContent = locked ? `🔒 เกรด ${c.lock.grade} ${Math.min(S.sCount, c.lock.times)}/${c.lock.times}` : c.tagline;
+      b.setAttribute('aria-label', locked
+        ? `${c.name} ล็อกอยู่ ต้องได้เกรด ${c.lock.grade} อีก ${lockLeft(c)} ครั้ง`
+        : `${c.name} ${c.tagline} ${c.bonus}`);
+    });
+  }
+
+  function teaseLock(c) {
+    setTip(`<span>🔒 ได้เกรด ${c.lock.grade} อีก ${lockLeft(c)} ครั้ง เพื่อปลดล็อก ${c.short}</span>`);
+    const b = D.cards.querySelector(`[data-id="${c.id}"]`);
+    b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake');
+  }
+
   function buildCards() {
     CHARACTERS.forEach((c) => {
       const b = el('button', `card c-${c.id}${c.special ? ' special' : ''}`);
       b.type = 'button';
       b.setAttribute('role', 'radio');
       b.setAttribute('aria-checked', 'false');
-      b.setAttribute('aria-label', `${c.name} ${c.tagline} ${c.bonus}`);
       b.dataset.id = c.id;
-      b.innerHTML = `<span class="tick" aria-hidden="true">✓</span>${c.special ? '<span class="new gold" aria-hidden="true">✨ พิเศษ</span>' : c.isNew ? '<span class="new" aria-hidden="true">NEW!</span>' : ''}
+      b.innerHTML = `<span class="tick" aria-hidden="true">✓</span>${c.special ? '<span class="tag gold" aria-hidden="true">✨ พิเศษ</span>' : ''}${c.lock ? '<span class="lock" aria-hidden="true">🔒</span>' : ''}
         <span class="pic"><img alt="" src="${ASSETS[c.id].src}"></span>
         <span class="info"><span class="nm">${c.name}</span><span class="tg">${c.tagline}</span></span>`;
+      b.setAttribute('aria-label', `${c.name} ${c.tagline} ${c.bonus}`);
       b.addEventListener('click', () => pick(c));
       D.cards.appendChild(b);
     });
     $('selCount').textContent = `🐾 ${CHARACTERS.length} คน`;
+    refreshLocks();
   }
 
   function pick(c) {
+    if (isLocked(c)) { teaseLock(c); return; }
     S.char = c;
     [...D.cards.children].forEach((b) => b.setAttribute('aria-checked', String(b.dataset.id === c.id)));
     D.startBtn.disabled = false;
@@ -1229,6 +1281,18 @@ const BOWLS = [
   }
 
   /* ---------- จบรอบ ---------- */
+  /** นับเกรด S 1 ครั้ง แล้วคืนข้อความแจ้ง (ถ้ามีตัวละครปลดล็อก/ใกล้ปลดล็อก) */
+  function recordS() {
+    const before = S.sCount;
+    S.sCount = before + 1;
+    saveProgress();
+    refreshLocks();
+    const opened = CHARACTERS.filter((c) => c.lock && before < c.lock.times && S.sCount >= c.lock.times);
+    if (opened.length) return `🔓 ปลดล็อก ${opened.map((c) => c.name).join(', ')} แล้ว! กลับไปเลือกได้เลย`;
+    const next = CHARACTERS.find((c) => isLocked(c));
+    return next ? `⭐ ได้เกรด S แล้ว ${Math.min(S.sCount, next.lock.times)}/${next.lock.times} ครั้ง เหลืออีก ${lockLeft(next)} ครั้งปลดล็อก ${next.short}` : '';
+  }
+
   function finish(auto) {
     if (S.finished || !S.engine || !S.engine.started) return;
     const m = S.engine.metrics(performance.now());
@@ -1238,7 +1302,8 @@ const BOWLS = [
     S.pointerId = null;
     stopLoop();
     const score = scoreRun(m);
-    S.last = { score, m, char: S.char };
+    S.last = { score, m, char: S.char, note: '' };
+    if (score.grade === 'S') S.last.note = recordS();
     chime(score.grade);
     showResult();
   }
@@ -1256,7 +1321,7 @@ const BOWLS = [
     D.rReact.textContent = react[0];
     D.sayEmoji.textContent = c.emoji; D.sayName.textContent = `${c.name} บอกว่า:`;
     D.sayMood.textContent = `${react[1]} ${react[0]}`;
-    D.sayText.innerHTML = `<span aria-hidden="true">${s.gradeEmoji}</span> ${zw(s.feedback)}`;
+    D.sayText.innerHTML = `<span aria-hidden="true">${s.gradeEmoji}</span> ${zw(s.feedback)}${S.last.note ? `<span class="unlock-note">${S.last.note}</span>` : ''}`;
 
     const gold = m.elapsed >= CFG.goldFrom && m.elapsed <= CFG.goldTo;
     const rows = [
